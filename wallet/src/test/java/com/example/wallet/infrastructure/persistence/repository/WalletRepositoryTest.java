@@ -12,7 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-// ĐÚNG (Spring Boot 4)
+// ĐÚNG (Spring Boot 3.3.4)
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;  // ← ĐÚNG
 import org.springframework.context.annotation.Import;
@@ -31,9 +31,14 @@ class WalletRepositoryTest {
 
   @Autowired private WalletRepository walletRepository;
 
+  @Autowired private LedgerTransactionRepository ledgerTransactionRepository;
+
   @BeforeEach
   void setUp() {
+    ledgerTransactionRepository.deleteAll();
+    ledgerTransactionRepository.flush();
     walletRepository.deleteAll();
+    walletRepository.flush();
   }
 
   @Test

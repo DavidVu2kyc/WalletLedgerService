@@ -1,6 +1,7 @@
 package com.example.wallet.interfaces.rest;
 
 import com.example.wallet.application.dto.BalanceResponse;
+import com.example.wallet.application.dto.WalletBalanceResponse;
 import com.example.wallet.application.dto.WalletOperationRequest;
 import com.example.wallet.application.dto.WalletOperationResponse;
 import com.example.wallet.application.service.WalletService;
@@ -49,5 +50,10 @@ public class WalletController {
   @GetMapping("/{playerId}/balance")
   public ResponseEntity<BalanceResponse> getBalance(@PathVariable Long playerId) {
     return ResponseEntity.ok(walletService.getBalance(playerId));
+  }
+
+  @GetMapping("/{playerId}/audit")
+  public ResponseEntity<WalletBalanceResponse> auditBalance(@PathVariable Long playerId) {
+    return ResponseEntity.ok(walletService.auditBalance(playerId));
   }
 }
