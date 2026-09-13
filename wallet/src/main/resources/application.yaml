@@ -46,8 +46,15 @@ logging:
     com.example.wallet: DEBUG
     org.springframework.web: INFO
     org.hibernate: WARN
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
 
 springdoc:
   api-docs:
