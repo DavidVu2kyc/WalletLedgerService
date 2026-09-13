@@ -16,7 +16,7 @@ public class LocalTestcontainersConfig {
     @ServiceConnection
     PostgreSQLContainer<?> postgresContainer() {
         return new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
-                .withReuse(true);   // ← container được tái sử dụng
+                .withReuse(true);
     }
 
     @Bean
@@ -26,7 +26,7 @@ public class LocalTestcontainersConfig {
                 .locations("classpath:db/migration")
                 .baselineOnMigrate(true)
                 .load();
-        flyway.migrate();   // chạy migration ngay khi bean được tạo
+        flyway.migrate();
         return flyway;
     }
 }

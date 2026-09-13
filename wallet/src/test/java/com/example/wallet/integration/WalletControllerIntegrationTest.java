@@ -1,6 +1,5 @@
 package com.example.wallet.integration;
 
-import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -10,10 +9,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.example.wallet.application.dto.BalanceResponse;
+import com.example.wallet.application.dto.WalletBalanceResponse;
 import com.example.wallet.application.dto.WalletOperationRequest;
 import com.example.wallet.application.dto.WalletOperationResponse;
 import com.example.wallet.application.service.WalletService;
+import com.example.wallet.domain.exception.DuplicateRequestException;
 import com.example.wallet.domain.exception.IdeIdempotencyKeyConflictException;
 import com.example.wallet.domain.exception.InsufficientBalanceException;
 import com.example.wallet.domain.exception.WalletNotFoundException;
@@ -239,9 +239,28 @@ class WalletControllerIntegrationTest {
   }
 
   @Test
+  @DisplayName("credit_whenRequestIsDuplicate_returns409DuplicateRequest")
+  void credit_whenRequestIsDuplicate_returns409DuplicateRequest() throws Exception {
+    when(walletService.credit(eq(1L), eq(IDEMPOTENCY_KEY), org.mockito.ArgumentMatchers.any()))
+        .thenThrow(new DuplicateRequestException("Request is already being processed"));
+
+    mockMvc
+        .perform(
+            post("/api/v1/wallets/1/credit")
+                .header("Idempotency-Key", IDEMPOTENCY_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new WalletOperationRequest(new BigDecimal("50.00"), "ref", "credit"))))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("DUPLICATE_REQUEST"))
+        .andExpect(jsonPath("$.message").value("Request is already being processed"));
+  }
+
+  @Test
   @DisplayName("getBalance_whenWalletExists_returns200WithBalance")
   void getBalance_whenWalletExists_returns200WithBalance() throws Exception {
-    when(walletService.getBalance(1L)).thenReturn(new BalanceResponse(1L, new BigDecimal("123.45"), "COIN"));
+    when(walletService.getBalance(1L)).thenReturn(new WalletBalanceResponse(1L, new BigDecimal("123.45"), "COIN"));
 
     mockMvc
         .perform(get("/api/v1/wallets/1/balance"))

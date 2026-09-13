@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import com.example.wallet.application.dto.BalanceResponse;
+import com.example.wallet.application.dto.WalletBalanceResponse;
 import com.example.wallet.application.dto.WalletOperationRequest;
 import com.example.wallet.application.dto.WalletOperationResponse;
+import com.example.wallet.application.mapper.WalletOperationMapper;
+import com.example.wallet.application.service.impl.WalletServiceImpl;
 import com.example.wallet.domain.exception.IdeIdempotencyKeyConflictException;
 import com.example.wallet.domain.exception.InsufficientBalanceException;
 import com.example.wallet.domain.exception.WalletNotFoundException;
@@ -38,7 +40,9 @@ class WalletServiceTest {
 
   @BeforeEach
   void setUp() {
-    walletService = new WalletService(walletRepository, ledgerTransactionRepository);
+    walletService =
+        new WalletServiceImpl(
+            walletRepository, ledgerTransactionRepository, new WalletOperationMapper());
   }
 
   @Test
@@ -358,7 +362,7 @@ void creditWallet_whenIdempotencyKeyConflictButSamePayload_returnsOriginalRespon
     when(walletRepository.findByPlayerId(playerId)).thenReturn(Optional.of(wallet));
 
     // When
-    BalanceResponse response = walletService.getBalance(playerId);
+    WalletBalanceResponse response = walletService.getBalance(playerId);
 
     // Then
     assertThat(response).isNotNull();
@@ -443,6 +447,46 @@ void creditWallet_whenIdempotencyKeyConflictButSamePayload_returnsOriginalRespon
 
     // Then
     assertThat(response.balanceAfter()).isEqualByComparingTo(new BigDecimal("999999999.99"));
+  }
+
+  @Test
+  @DisplayName("creditWallet_whenLedgerInsertConflictsWithMatchingRequest_returnsOriginalResponse")
+  void creditWallet_whenLedgerInsertConflictsWithMatchingRequest_returnsOriginalResponse() {
+    Long playerId = 1L;
+    String idempotencyKey = "racing-credit-key";
+    BigDecimal amount = new BigDecimal("50.00");
+    Wallet wallet = createWallet(playerId, new BigDecimal("100.00"));
+    WalletOperationRequest request = new WalletOperationRequest(amount, "test-ref", "test credit");
+    LedgerTransaction existingTransaction =
+        createLedgerTransaction(10L, wallet, TransactionType.CREDIT, amount, idempotencyKey);
+
+    when(ledgerTransactionRepository.findByRequestId(idempotencyKey))
+        .thenReturn(Optional.empty(), Optional.of(existingTransaction));
+    when(walletRepository.findByPlayerIdForUpdate(playerId)).thenReturn(Optional.of(wallet));
+    when(ledgerTransactionRepository.save(any(LedgerTransaction.class)))
+        .thenThrow(new DataIntegrityViolationException("duplicate request ID"));
+
+    WalletOperationResponse response = walletService.credit(playerId, idempotencyKey, request);
+
+    assertThat(response.transactionId()).isEqualTo(10L);
+  }
+
+  @Test
+  @DisplayName("creditWallet_whenLedgerInsertConflictsWithoutExistingRequest_throwsConflict")
+  void creditWallet_whenLedgerInsertConflictsWithoutExistingRequest_throwsConflict() {
+    Long playerId = 1L;
+    String idempotencyKey = "conflicting-credit-key";
+    Wallet wallet = createWallet(playerId, new BigDecimal("100.00"));
+    WalletOperationRequest request =
+        new WalletOperationRequest(new BigDecimal("50.00"), "test-ref", "test credit");
+
+    when(ledgerTransactionRepository.findByRequestId(idempotencyKey)).thenReturn(Optional.empty());
+    when(walletRepository.findByPlayerIdForUpdate(playerId)).thenReturn(Optional.of(wallet));
+    when(ledgerTransactionRepository.save(any(LedgerTransaction.class)))
+        .thenThrow(new DataIntegrityViolationException("duplicate request ID"));
+
+    assertThatThrownBy(() -> walletService.credit(playerId, idempotencyKey, request))
+        .isInstanceOf(IdeIdempotencyKeyConflictException.class);
   }
 
   // Helper methods
