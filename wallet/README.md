@@ -1,101 +1,89 @@
 # Wallet Ledger Backend Service
 
-A high-performance, idempotent, and thread-safe wallet system designed to handle player balances and transaction history with a permanent audit trail (ledger).
+A Spring Boot service for wallet credits, debits, balances, and transaction history. It maintains a current balance for fast reads and an immutable ledger record for every successful balance change.
 
-## 🚀 Getting Started
+## How to run
 
 ### Prerequisites
-- **Java 21** (Required)
-- **Maven 3.9+**
-- **Docker & Docker Compose** (for PostgreSQL)
 
-### Quick Start
-1. **Start the Database:**
-   ```bash
-   cd wallet
-   docker-compose up -d
-   ```
-2. **Run the Application:**
-   ```bash
-   ./mvnw spring-boot:run
-   ```
-3. **Run Tests:**
-   ```bash
-   ./mvnw clean verify
-   ```
-   *This will run all unit, integration, and concurrency tests, and generate a JaCoCo coverage report.*
+- Java 21
+- Docker Desktop (or another Docker-compatible runtime)
+- Maven is optional: the included Maven wrapper (`./mvnw`) is used below.
 
-### API Documentation
-Once the app is running, you can access the Swagger UI at:
-`http://localhost:8080/swagger-ui/index.html`
+### Project setup and database
 
----
+From the repository root, start the local PostgreSQL database:
 
-## 🛠 Technical Architecture
+```bash
+docker compose up -d postgres
+```
 
-### Core Principles
-- **Append-Only Ledger**: Balances are not just numbers in a table; every change is recorded as a `LedgerTransaction`. This ensures a complete audit trail.
-- **Strong Consistency**: Uses database-level locking to prevent double-spending and race conditions.
-- **Idempotency**: Every write operation requires an `Idempotency-Key` to prevent accidental duplicate transactions.
+The application connects to `localhost:5432/wallet_db` with the development credentials defined in `docker-compose.yaml`. Flyway applies the schema migrations automatically when the application starts. To start the service:
 
-### API Endpoints
-| Method | Endpoint | Description | Key Requirement |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/v1/wallets/{playerId}/credit` | Add funds to wallet | `Idempotency-Key` header |
-| `POST` | `/api/v1/wallets/{playerId}/debit` | Subtract funds from wallet | `Idempotency-Key` header |
-| `GET` | `/api/v1/wallets/{playerId}/balance` | Get current balance | - |
-| `GET` | `/api/v1/wallets/{playerId}/audit` | Reconciled ledger-vs-balance audit | - |
-| `GET` | `/api/v1/wallets/{playerId}/transactions` | Paginated history | `page`, `size` params |
+```bash
+./mvnw spring-boot:run
+```
 
----
+The service listens on `http://localhost:8080`. Swagger UI is available at `http://localhost:8080/swagger-ui.html`.
 
-## 🛡 Safety & Correctness
+The balance integrity endpoint, `GET /api/v1/wallets/{playerId}/balance/verify`, recomputes a wallet's balance from its ledger without changing any data. It returns the stored balance, the calculated ledger balance, and whether they match.
 
-### 1. Concurrency Control
-To handle high-concurrency environments (e.g., a player claiming multiple rewards simultaneously), we use a **Defense-in-Depth** locking strategy:
-- **Pessimistic Locking**: The service uses `SELECT ... FOR UPDATE` (via `@Lock(LockModeType.PESSIMISTIC_WRITE)`) when fetching a wallet for a credit/debit operation. This serializes requests for the *same wallet* at the database level.
-- **Optimistic Locking**: The `Wallet` entity includes a `@Version` field. If a race condition bypasses the pessimistic lock, JPA will throw an `OptimisticLockException`, preventing data corruption.
+To stop the local database while retaining its Docker volume:
 
-### 2. Idempotency Guarantee
-To prevent the "double-submit" problem:
-- Every transaction is stored with a `request_id` (the `Idempotency-Key` provided by the client).
-- The database enforces a `UNIQUE` constraint on `ledger_transactions.request_id`.
-- If a duplicate key is submitted:
-    - If the payload (amount/reference) matches the original $\rightarrow$ Return the original successful response.
-    - If the payload differs $\rightarrow$ Return `409 Conflict` (`IDEMPOTENCY_KEY_CONFLICT`).
+```bash
+docker compose down
+```
 
-### 3. Atomic Transactions
-All money-moving operations are wrapped in `@Transactional`. The sequence is:
-1. Lock Wallet $\rightarrow$ 2. Update Balance $\rightarrow$ 3. Insert Ledger Record.
-If any step fails (e.g., DB crash or constraint violation), the entire operation rolls back.
+### Execute the tests
 
----
+```bash
+./mvnw clean verify
+```
 
-## 📈 Testing Strategy
+Integration and concurrency tests start PostgreSQL through Testcontainers (`postgres:16-alpine`), so Docker must be running even when the application database is not started separately. The command also runs the configured JaCoCo coverage checks; its HTML report is written to `target/site/jacoco/index.html`.
 
-The test suite is layered to prove both *functional correctness* and *financial integrity*:
+## Design decisions
 
-- **Unit Tests**: Validate domain logic in `Wallet` and `LedgerFactory` (credit/debit invariants, precision handling).
-- **Repository Tests**: Verify SQL queries and locking behavior against a **real PostgreSQL** instance via Testcontainers.
-- **Integration Tests**: `WalletControllerIntegrationTest` exercises the full HTTP layer (request validation, headers, error mapping to `400/404/409`).
-- **Concurrency Tests**: `WalletConcurrencyTest` is the crown jewel — it proves the locking is not theoretical. It uses a `CountDownLatch` (an `ExecutorService` of many threads each `await()` on the shared start gate so that **all threads race simultaneously** against a single wallet) to fire dozens of concurrent credits/debits. Because every credit/debit acquires the `PESSIMISTIC_WRITE` (`SELECT ... FOR UPDATE`) lock on the same wallet row, the operations serialize at the database level and the **final balance is asserted to be mathematically correct** (e.g., `initial + Σ credits - Σ debits`). This test *fails* if the lock were removed, making it a regression guard for balance corruption.
-- **Balance Audit**: `auditBalance` reconciles the authoritative `LedgerTransaction` history (CREDIT +, DEBIT −) against the current wallet balance and returns `isConsistent`. Any drift is immediately visible — the ledger is the **source of truth**, not the denormalized wallet balance.
-- **Coverage**: Targeted ≥99% on domain models and application services, enforced by JaCoCo during `verify`.
+### Ledger approach
 
----
+The service uses a hybrid, append-only ledger design:
 
-## 🧭 Known Limitations & Future Roadmap
+- `ledger_transactions` is the audit trail. A successful credit or debit creates one record containing the request ID, type, amount, balance before/after, reference, description, and timestamp.
+- `wallets.balance` is a materialized current balance. It makes balance reads and insufficient-funds checks inexpensive, while the ledger provides the history needed for audit and reconciliation.
+- Ledger rows are created within the same database transaction as the balance update, so a balance cannot be committed without its matching ledger entry (or vice versa).
 
-The system is production-grade for a single-region, single-PostgreSQL deployment, but the following limitations are acknowledged with a concrete evolution path:
+This deliberately favors read performance and straightforward operational checks over calculating the balance by summing every ledger row at request time. The trade-off is that the stored balance is derived state: reconciliation tooling would be useful in production to periodically verify it against the ledger.
 
-### 1. Distributed Locking (Redis / Redlock)
-- **Limitation**: `PESSIMISTIC_WRITE` relies on the single PostgreSQL instance being the coordination point. It does not span multiple database regions and can become a contention bottleneck at extreme volumes.
-- **Roadmap**: Introduce a distributed lock (e.g., Redis or the Redlock algorithm) acquired **before** the DB transaction, so the wallet row lock is held for the minimum required time. This allows multi-region horizontal scaling while keeping the DB lock as a final safety net.
+The included balance-integrity endpoint provides an on-demand reconciliation check; a scheduled job and alerting would be the next production step.
 
-### 2. Domain Events (Async Notifications)
-- **Limitation**: `WalletService` currently writes the ledger and returns a synchronous response; there is no mechanism for other systems (e.g., notification services, anti-fraud, analytics) to react to wallet events.
-- **Roadmap**: Publish domain events (credit/debit succeeded, insufficient funds) via Spring's `ApplicationEventPublisher`, persisted in an outbox table and delivered through a transactional outbox pattern to ensure reliable, exactly-once async processing.
+The database stores monetary amounts as `NUMERIC(19,2)`, and the application uses `BigDecimal`, avoiding floating-point rounding errors.
 
-### 3. Multi-Currency Support
-- **Limitation**: The wallet is single-currency (`COIN`); no exchange-rate handling or per-currency balance tracking exists.
-- **Roadmap**: Model balances with ISO 4217 currency codes, introduce an exchange-rate service (with mid-rate + spread + timestamped FX snapshots), and store the applied conversion on each `LedgerTransaction` so the audit trail remains fully reproducible in a multi-currency world.
+## Concurrency & Idempotency
+
+Each credit or debit runs in a Spring `@Transactional` transaction. For money-moving operations, the wallet is read using a pessimistic write lock (`SELECT ... FOR UPDATE`), which serializes updates for the same player wallet. The `Wallet` entity also has a JPA `@Version` field as an additional optimistic-locking safeguard. Operations on different wallets are not unnecessarily serialized.
+
+Before changing a balance, the service checks that sufficient funds are available while that wallet lock is held. This prevents two concurrent debits from independently observing the same balance and both spending it.
+
+Clients must send an `Idempotency-Key` header for each credit or debit. The key is persisted as `ledger_transactions.request_id`, which has a database `UNIQUE` constraint. A retry with the same key, amount, operation type, and reference returns the original transaction result without applying the balance change again. Reusing a key with a different payload returns `409 Conflict` (`IDEMPOTENCY_KEY_CONFLICT`). The unique constraint is also the final protection if identical requests race each other across application instances.
+
+## Testing approach
+
+The test suite combines focused unit tests, repository tests, REST/controller tests, and Spring Boot integration tests. Database-backed tests use PostgreSQL via Testcontainers rather than an in-memory substitute, so transaction locking and numeric behavior are exercised against the production database family.
+
+The concurrent-debit test (`WalletConcurrencyTest#concurrentDebits_neverAllowNegativeBalance`) is the key safety case:
+
+1. It seeds one wallet with `100.00`.
+2. Ten worker threads are released together using a `CountDownLatch`.
+3. Each requests a distinct debit of `30.00`.
+4. The test asserts exactly three successful debits, seven insufficient-balance failures, and a final balance of `10.00`.
+
+The same class also verifies that concurrent credits with different keys all succeed, and that concurrent requests sharing one idempotency key produce only one applied credit.
+
+## Assumptions & limitations
+
+- A wallet must already exist; this service does not currently expose wallet-creation or authentication/authorization endpoints.
+- The idempotency key is globally unique at the ledger level. Production systems may prefer scoping it by client or wallet, alongside expiration and retention policies.
+- The design has no outbox/event publication, reconciliation job, or compensating/reversal workflow. These would be natural additions for integrations, audit operations, and long-running failure recovery.
+- PostgreSQL row locks preserve correctness but can increase latency for a very hot single wallet. If that becomes a bottleneck, queueing/partitioning strategies or carefully designed atomic SQL updates should be evaluated without weakening the ledger guarantees.
+- Amounts use two decimal places and the balance response currently identifies the currency as `COIN`; multi-currency wallets and currency-specific precision are out of scope.
+- Testcontainers requires Docker availability; the local compose database uses the development credentials committed in this repository and should not be used as a production configuration.

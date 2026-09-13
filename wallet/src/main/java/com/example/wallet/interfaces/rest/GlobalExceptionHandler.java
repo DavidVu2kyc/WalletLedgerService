@@ -1,5 +1,6 @@
 package com.example.wallet.interfaces.rest;
 
+import com.example.wallet.domain.exception.DuplicateRequestException;
 import com.example.wallet.domain.exception.IdeIdempotencyKeyConflictException;
 import com.example.wallet.domain.exception.InsufficientBalanceException;
 import com.example.wallet.domain.exception.WalletNotFoundException;
@@ -40,6 +41,14 @@ public class GlobalExceptionHandler {
     ErrorResponse error =
         new ErrorResponse(
             "IDEMPOTENCY_KEY_CONFLICT", ex.getMessage(), Instant.now(), new HashMap<>());
+    return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+  }
+
+  @ExceptionHandler(DuplicateRequestException.class)
+  public ResponseEntity<ErrorResponse> handleDuplicateRequestException(
+      DuplicateRequestException ex, WebRequest request) {
+    ErrorResponse error =
+        new ErrorResponse("DUPLICATE_REQUEST", ex.getMessage(), Instant.now(), new HashMap<>());
     return new ResponseEntity<>(error, HttpStatus.CONFLICT);
   }
 

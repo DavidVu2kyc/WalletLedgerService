@@ -1,6 +1,5 @@
 package com.example.wallet.integration;
 
-import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -10,11 +9,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.example.wallet.application.dto.BalanceResponse;
 import com.example.wallet.application.dto.WalletBalanceResponse;
 import com.example.wallet.application.dto.WalletOperationRequest;
 import com.example.wallet.application.dto.WalletOperationResponse;
 import com.example.wallet.application.service.WalletService;
+import com.example.wallet.domain.exception.DuplicateRequestException;
 import com.example.wallet.domain.exception.IdeIdempotencyKeyConflictException;
 import com.example.wallet.domain.exception.InsufficientBalanceException;
 import com.example.wallet.domain.exception.WalletNotFoundException;
@@ -240,9 +239,28 @@ class WalletControllerIntegrationTest {
   }
 
   @Test
+  @DisplayName("credit_whenRequestIsDuplicate_returns409DuplicateRequest")
+  void credit_whenRequestIsDuplicate_returns409DuplicateRequest() throws Exception {
+    when(walletService.credit(eq(1L), eq(IDEMPOTENCY_KEY), org.mockito.ArgumentMatchers.any()))
+        .thenThrow(new DuplicateRequestException("Request is already being processed"));
+
+    mockMvc
+        .perform(
+            post("/api/v1/wallets/1/credit")
+                .header("Idempotency-Key", IDEMPOTENCY_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new WalletOperationRequest(new BigDecimal("50.00"), "ref", "credit"))))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("DUPLICATE_REQUEST"))
+        .andExpect(jsonPath("$.message").value("Request is already being processed"));
+  }
+
+  @Test
   @DisplayName("getBalance_whenWalletExists_returns200WithBalance")
   void getBalance_whenWalletExists_returns200WithBalance() throws Exception {
-    when(walletService.getBalance(1L)).thenReturn(new BalanceResponse(1L, new BigDecimal("123.45"), "COIN"));
+    when(walletService.getBalance(1L)).thenReturn(new WalletBalanceResponse(1L, new BigDecimal("123.45"), "COIN"));
 
     mockMvc
         .perform(get("/api/v1/wallets/1/balance"))
@@ -260,47 +278,6 @@ class WalletControllerIntegrationTest {
 
     mockMvc
         .perform(get("/api/v1/wallets/999/balance"))
-        .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.code").value("WALLET_NOT_FOUND"));
-  }
-
-  @Test
-  @DisplayName("auditBalance_whenWalletExists_returns200WithAudit")
-  void auditBalance_whenWalletExists_returns200WithAudit() throws Exception {
-    when(walletService.auditBalance(1L))
-        .thenReturn(new WalletBalanceResponse(1L, new BigDecimal("100.00"), new BigDecimal("100.00"), true));
-
-    mockMvc
-        .perform(get("/api/v1/wallets/1/audit"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.playerId").value(1))
-        .andExpect(jsonPath("$.currentBalance").value(100.00))
-        .andExpect(jsonPath("$.ledgerSum").value(100.00))
-        .andExpect(jsonPath("$.isConsistent").value(true));
-  }
-
-  @Test
-  @DisplayName("auditBalance_whenLedgerInconsistent_returns200WithInconsistentFlag")
-  void auditBalance_whenLedgerInconsistent_returns200WithInconsistentFlag() throws Exception {
-    when(walletService.auditBalance(2L))
-        .thenReturn(new WalletBalanceResponse(2L, new BigDecimal("100.00"), new BigDecimal("175.00"), false));
-
-    mockMvc
-        .perform(get("/api/v1/wallets/2/audit"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.currentBalance").value(100.00))
-        .andExpect(jsonPath("$.ledgerSum").value(175.00))
-        .andExpect(jsonPath("$.isConsistent").value(false));
-  }
-
-  @Test
-  @DisplayName("auditBalance_whenWalletNotFound_returns404WalletNotFound")
-  void auditBalance_whenWalletNotFound_returns404WalletNotFound() throws Exception {
-    when(walletService.auditBalance(999L))
-        .thenThrow(new WalletNotFoundException("Wallet not found for playerId: 999"));
-
-    mockMvc
-        .perform(get("/api/v1/wallets/999/audit"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("WALLET_NOT_FOUND"));
   }

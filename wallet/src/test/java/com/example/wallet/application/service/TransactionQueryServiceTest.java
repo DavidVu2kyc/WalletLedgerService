@@ -5,6 +5,8 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.example.wallet.application.dto.TransactionPage;
+import com.example.wallet.application.mapper.TransactionMapper;
+import com.example.wallet.application.service.impl.TransactionQueryServiceImpl;
 import com.example.wallet.domain.exception.WalletNotFoundException;
 import com.example.wallet.domain.model.LedgerTransaction;
 import com.example.wallet.domain.model.TransactionType;
@@ -40,7 +42,8 @@ class TransactionQueryServiceTest {
   @BeforeEach
   void setUp() {
     transactionQueryService =
-        new TransactionQueryService(ledgerTransactionRepository, walletRepository);
+        new TransactionQueryServiceImpl(
+            ledgerTransactionRepository, walletRepository, new TransactionMapper());
   }
 
   @Test
