@@ -99,7 +99,17 @@ public class WalletServiceImpl implements WalletService {
   @Transactional(readOnly = true)
   public WalletBalanceResponse getBalance(Long playerId) {
     Wallet wallet = findWallet(playerId);
-    return new WalletBalanceResponse(wallet.getPlayerId(), wallet.getBalance(), "COIN");
+    BigDecimal credits =
+        ledgerTransactionRepository.sumAmountByPlayerIdAndType(playerId, TransactionType.CREDIT);
+    BigDecimal debits =
+        ledgerTransactionRepository.sumAmountByPlayerIdAndType(playerId, TransactionType.DEBIT);
+    BigDecimal ledgerBalance = credits.subtract(debits);
+
+    return new WalletBalanceResponse(
+        wallet.getPlayerId(),
+        wallet.getBalance(),
+        ledgerBalance,
+        wallet.getBalance().compareTo(ledgerBalance) == 0);
   }
 
   @Override

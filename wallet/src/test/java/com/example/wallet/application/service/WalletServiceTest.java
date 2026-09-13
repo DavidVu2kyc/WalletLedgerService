@@ -360,6 +360,10 @@ void creditWallet_whenIdempotencyKeyConflictButSamePayload_returnsOriginalRespon
 
     Wallet wallet = createWallet(playerId, balance);
     when(walletRepository.findByPlayerId(playerId)).thenReturn(Optional.of(wallet));
+    when(ledgerTransactionRepository.sumAmountByPlayerIdAndType(playerId, TransactionType.CREDIT))
+        .thenReturn(new BigDecimal("300.75"));
+    when(ledgerTransactionRepository.sumAmountByPlayerIdAndType(playerId, TransactionType.DEBIT))
+        .thenReturn(new BigDecimal("50.00"));
 
     // When
     WalletBalanceResponse response = walletService.getBalance(playerId);
@@ -367,8 +371,9 @@ void creditWallet_whenIdempotencyKeyConflictButSamePayload_returnsOriginalRespon
     // Then
     assertThat(response).isNotNull();
     assertThat(response.playerId()).isEqualTo(playerId);
-    assertThat(response.balance()).isEqualByComparingTo(balance);
-    assertThat(response.currency()).isEqualTo("COIN");
+    assertThat(response.currentBalance()).isEqualByComparingTo(balance);
+    assertThat(response.ledgerSum()).isEqualByComparingTo(balance);
+    assertThat(response.isConsistent()).isTrue();
     verify(walletRepository).findByPlayerId(playerId);
   }
 
