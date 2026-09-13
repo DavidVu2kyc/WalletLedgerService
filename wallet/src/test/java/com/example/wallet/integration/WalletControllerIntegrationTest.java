@@ -260,14 +260,16 @@ class WalletControllerIntegrationTest {
   @Test
   @DisplayName("getBalance_whenWalletExists_returns200WithBalance")
   void getBalance_whenWalletExists_returns200WithBalance() throws Exception {
-    when(walletService.getBalance(1L)).thenReturn(new WalletBalanceResponse(1L, new BigDecimal("123.45"), "COIN"));
+    when(walletService.getBalance(1L))
+        .thenReturn(new WalletBalanceResponse(1L, new BigDecimal("123.45"), new BigDecimal("123.45"), true));
 
     mockMvc
         .perform(get("/api/v1/wallets/1/balance"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.playerId").value(1))
-        .andExpect(jsonPath("$.balance").value(123.45))
-        .andExpect(jsonPath("$.currency").value("COIN"));
+        .andExpect(jsonPath("$.currentBalance").value(123.45))
+        .andExpect(jsonPath("$.ledgerSum").value(123.45))
+        .andExpect(jsonPath("$.isConsistent").value(true));
   }
 
   @Test
