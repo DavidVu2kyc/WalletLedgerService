@@ -11,6 +11,11 @@ A Spring Boot service for wallet credits, debits, balances, and transaction hist
 - Maven is optional: the included Maven wrapper (`./mvnw`) is used below.
 
 ### Project setup and database
+Find the root project
+
+```bash
+cd wallet
+```
 
 From the repository root, start the local PostgreSQL database:
 
