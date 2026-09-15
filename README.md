@@ -15,13 +15,13 @@ A Spring Boot service for wallet credits, debits, balances, and transaction hist
 From the repository root, start the local PostgreSQL database:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d 
 ```
 
 The application connects to `localhost:5432/wallet_db` with the development credentials defined in `docker-compose.yaml`. Flyway applies the schema migrations automatically when the application starts. To start the service:
 
 ```bash
-./mvnw spring-boot:run
+mvn spring-boot:run
 ```
 
 The service listens on `http://localhost:8080`. Swagger UI is available at `http://localhost:8080/swagger-ui.html`.
