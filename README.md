@@ -26,7 +26,7 @@ docker compose up -d postgres
 The application connects to `localhost:5432/wallet_db` with the development credentials defined in `docker-compose.yaml`. Flyway applies the schema migrations automatically when the application starts. To start the service:
 
 ```bash
-./mvnw spring-boot:run
+mvn spring-boot:run
 ```
 
 The service listens on `http://localhost:8080`. Swagger UI is available at `http://localhost:8080/swagger-ui.html`.
@@ -42,7 +42,7 @@ docker compose down
 ### Execute the tests
 
 ```bash
-./mvnw clean verify
+mvn clean verify
 ```
 
 Integration and concurrency tests start PostgreSQL through Testcontainers (`postgres:16-alpine`), so Docker must be running even when the application database is not started separately. The command also runs the configured JaCoCo coverage checks; its HTML report is written to `target/site/jacoco/index.html`.
