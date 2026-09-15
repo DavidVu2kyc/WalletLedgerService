@@ -24,5 +24,4 @@ services:
     depends_on:
       - postgres
 volumes:
-
   postgres-data:
