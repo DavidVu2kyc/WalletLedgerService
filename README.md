@@ -46,7 +46,7 @@ docker compose ps
 The application connects to:
 
 ```text
-localhost:5432/wallet_db
+localhost:5433/wallet_db
 ```
 
 using the development credentials defined in `docker-compose.yaml`.
