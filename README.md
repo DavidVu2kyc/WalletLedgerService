@@ -11,6 +11,11 @@ A Spring Boot service for wallet credits, debits, balances, and transaction hist
 - Maven is optional: the included Maven wrapper (`./mvnw`) is used below.
 
 ### Project setup and database
+Find the root project
+
+```bash
+cd wallet
+```
 
 From the repository root, start the local PostgreSQL database:
 
@@ -37,7 +42,7 @@ docker compose down
 ### Execute the tests
 
 ```bash
-./mvnw clean verify
+mvn clean verify
 ```
 
 Integration and concurrency tests start PostgreSQL through Testcontainers (`postgres:16-alpine`), so Docker must be running even when the application database is not started separately. The command also runs the configured JaCoCo coverage checks; its HTML report is written to `target/site/jacoco/index.html`.
