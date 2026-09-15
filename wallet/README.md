@@ -15,7 +15,7 @@ A Spring Boot service for wallet credits, debits, balances, and transaction hist
 From the repository root, start the local PostgreSQL database:
 
 ```bash
-docker compose up -d 
+docker compose up -d postgres
 ```
 
 The application connects to `localhost:5432/wallet_db` with the development credentials defined in `docker-compose.yaml`. Flyway applies the schema migrations automatically when the application starts. To start the service:

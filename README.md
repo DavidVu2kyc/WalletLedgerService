@@ -20,13 +20,13 @@ cd wallet
 From the repository root, start the local PostgreSQL database:
 
 ```bash
-docker compose up -d 
+docker compose up -d postgres
 ```
 
 The application connects to `localhost:5432/wallet_db` with the development credentials defined in `docker-compose.yaml`. Flyway applies the schema migrations automatically when the application starts. To start the service:
 
 ```bash
-mvn spring-boot:run
+./mvnw spring-boot:run
 ```
 
 The service listens on `http://localhost:8080`. Swagger UI is available at `http://localhost:8080/swagger-ui.html`.
