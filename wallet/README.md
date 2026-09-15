@@ -18,7 +18,7 @@ From the repository root, start the local PostgreSQL database:
 docker compose up -d postgres
 ```
 
-The application connects to `localhost:5432/wallet_db` with the development credentials defined in `docker-compose.yaml`. Flyway applies the schema migrations automatically when the application starts. To start the service:
+The application connects to `localhost:5433/wallet_db` with the development credentials defined in `docker-compose.yaml`. Host port `5433` avoids conflicts with a separately installed PostgreSQL server using the default `5432` port. Flyway applies the schema migrations automatically when the application starts. To start the service:
 
 ```bash
 ./mvnw spring-boot:run

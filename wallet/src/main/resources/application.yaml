@@ -3,7 +3,7 @@ spring:
     name: wallet-ledger-service
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/wallet_db?options=-c%20TimeZone=UTC
+    url: jdbc:postgresql://localhost:5433/wallet_db?options=-c%20TimeZone=UTC
     username: wallet_user
     password: wallet_password
     driver-class-name: org.postgresql.Driver
